@@ -1,0 +1,59 @@
+<html lang="en">
+<head>
+<title>Authentication and state - cl-twit</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="cl-twit">
+<meta name="generator" content="makeinfo 4.11">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="prev" href="_002ecl_002dtwit_002elisp.html#g_t_002ecl_002dtwit_002elisp" title=".cl-twit.lisp">
+<link rel="next" href="Status-messages.html#Status-messages" title="Status messages">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+Copyright (C) 2009 Chaitanya Gupta-->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<p>
+<a name="Authentication-and-state"></a>
+Next:&nbsp;<a rel="next" accesskey="n" href="Status-messages.html#Status-messages">Status messages</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="_002ecl_002dtwit_002elisp.html#g_t_002ecl_002dtwit_002elisp">.cl-twit.lisp</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="index.html#Top">Top</a>
+<hr>
+</div>
+
+<h2 class="chapter">3 Authentication and state</h2>
+
+<p>Before you can use any other API functions, you need to login:
+
+<pre class="lisp">     ;; If the first argument is non-NIL, a verify_credentials call is made
+     ;; to twitter. The username and password are assumed to be
+     ;; twit:*username* and twit:*password* by default.
+     (twit:login t)
+     
+     ;; You can also explicitly specify the username and password using
+     ;; twit:login
+     (twit:login t "username" "password")
+</pre>
+   <p>Use <code>(twit:forget-state)</code> to forget the current session state. This
+will clear the last noticed status/message ids for functions like
+<code>timeline</code>, <code>messages</code>, etc. <code>(twit:logout)</code> will also
+clear the username and password.
+
+   <p><code>(twit:m-rate-limit-status)</code> returns a rate-limit object which
+gives the number of hits remaining this hour, the reset time for the
+rate limit counter, etc.
+
+   </body></html>
+

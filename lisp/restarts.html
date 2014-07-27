@@ -1,0 +1,453 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"
+               "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml"
+lang="en" xml:lang="en">
+<head>
+<title>Common Lisp: A Tutorial on Conditions and Restarts</title>
+<meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1"/>
+<meta name="generator" content="Org-mode"/>
+<meta name="generated" content="2008/05/06 21:12:25"/>
+<meta name="author" content="Chaitanya Gupta"/>
+<style type="text/css">
+  html {
+	font-family: Times, serif;
+	font-size: 12pt;
+  }
+  body { margin-left: 20px }
+  title { text-align: center; }
+  p { width: 600px; }
+  todo  { color: red; }
+  done { color: green; }
+  timestamp { color: grey }
+  timestamp-kwd { color: CadetBlue }
+  tag { background-color:lightblue; font-weight:normal }
+  target { background-color: lavender; }
+  pre {
+	background-color: #F3F5F7;
+	border: 1pt solid #AEBDCC;
+	padding: 5pt;
+	font-family: courier, monospace;
+  }
+  table { border-collapse: collapse; }
+  td, th {
+	vertical-align: top;
+	<!--border: 1pt solid #ADB9CC;-->
+  }
+ ol { width: 600px; }
+</style>
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-291657-1']);
+  _gaq.push(['_setDomainName', '.chaitanyagupta.com']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+
+</script>
+</head><body>
+<h1 class="title">Common Lisp: A Tutorial on Conditions and Restarts</h1>
+<h2>Table of Contents</h2>
+<ul>
+<li><a href="#sec-1">Introduction</a></li>
+<li><a href="#sec-2">Valiating the headers</a></li>
+<li><a href="#sec-3">Signaling validation errors</a></li>
+<li><a href="#sec-4">Parsing the CSV</a></li>
+<li><a href="#sec-5">The Validator (sans the restarts)</a></li>
+<li><a href="#sec-6">Putting restarts in place</a></li>
+<li><a href="#sec-7">Starting all over again</a></li>
+<li><a href="#sec-8">Handling restarts</a></li>
+<li><a href="#sec-9">Conclusion</a></li>
+<li><a href="#sec-10">Notes</a></li>
+</ul>
+
+<h2><a name="sec-1">Introduction</a></h2>
+
+<p>Common Lisp's condition system, with its exceptions and restarts, is
+one of its unique features. Unfortunately, there aren't many good
+tutorials explaining this concept very well. One good introduction to
+this is the chapter on conditions and restarts in Peter Seibel's
+excellent book, Practical Common Lisp (see 1, 2). This tutorial
+assumes some knowledge of the condition system, so you might want to
+read that chapter before proceeding.
+</p>
+<p>
+I'll attempt to show how effective CL's condition system can be, with
+a validator for CSV (comma-separated values) files. The validator will
+check that all the fields in each row of the file are valid (according
+to some defined criteria).
+</p>
+<p>
+The first row of the CSV will be a comma-separated list of headers,
+followed by rows with each column corresponding to the headers in the
+first row. A sample file looks like this:
+</p>
+<p>
+<pre>
+rating,url,visitors,date
+4,http://chaitanyagupta.com/home,1233445,2000-01-01
+5,http://chaitanyagupta.com/blog,33333,2006-02-02
+5,http://chaitanyagupta.com/code,2121212,2007-03-03
+</pre>
+</p>
+
+
+<h2><a name="sec-2">Valiating the headers</a></h2>
+
+<p>First we write functions to validate the four headers we used above:
+<code>rating</code>, <code>url</code>, <code>visitors</code>, and <code>date</code>. Note that these functions
+depend on the CL-PPCRE package (<a href="http://weitz.de/cl-ppcre">http://weitz.de/cl-ppcre</a>).
+</p>
+
+<p>
+<pre>
+(defun validate-url (string)
+  "The URL of the page; should start with http:// or https://."
+  (unless (cl-ppcre:scan "^https?://" string)
+    (csv-error "URL invalid." :value string)))
+
+
+(defun validate-rating (string)
+  "String should contain an integer between 1 and 5, inclusive."
+  (let ((rating (parse-integer string :junk-allowed t)))
+    (unless (and (integerp rating) (&lt;= 1 rating 5))
+      (csv-error "Rating not an integer in range." :value string))))
+
+
+(defun validate-visitors (string)
+  "The number of visitors to the page; string should contain an
+integer more than or equal to zero."
+  (let ((visitors (parse-integer string :junk-allowed nil)))
+    (unless (and (integerp visitors) (&gt;= visitors 0))
+      (csv-error "Number of visitors invalid." :value string))))
+
+
+(defun validate-date (string)
+  "The published date of the URL. Should be in yyyy-mm-dd format."
+  (let ((split (cl-ppcre:split "-" string)))
+    (flet ((!valid-number-of-digits-p (string n)   ; See note 3
+             (and (every #'digit-char-p string)
+                  (= (length string) n))))
+      (unless (and (!valid-number-of-digits-p (first split) 4)
+                   (!valid-number-of-digits-p (second split) 2)
+                   (!valid-number-of-digits-p (third split) 2))
+        (csv-error "Published date not in valid format." :value string)))))
+</pre>
+</p>
+
+<p>
+All these functions take a string as an argument, and if it doesn't
+satisfy the validation criteria, an error is signalled using the
+function <code>csv-error</code>. This is defined next.
+</p>
+
+<h2><a name="sec-3">Signaling validation errors</a></h2>
+
+<p>The function <code>csv-error</code> signals a condition of type <code>csv-error</code>,
+both of which are defined below.
+</p>
+<p>
+<pre>
+(define-condition csv-error (error)
+  ((message
+    :initarg :message
+    :accessor csv-error-message
+    :initform nil
+    :documentation "Text message indicating what went wrong with the validation.")
+   (value
+    :initarg :value
+    :accessor csv-error-value
+    :initform nil
+    :documentation "The value of the field for which the error is signalled.")
+   (line-number
+    :initarg :line-number
+    :accessor csv-error-line-number
+    :initform nil
+    :documentation "The line number of the row in for the error was signalled.")))
+
+
+;; Do something more useful than the default printer behaviour
+(defmethod print-object ((object csv-error) stream)
+  (print-unreadable-object (object stream :type t :identity t)
+    (format stream "~@[L~A ~]~S~@[: ~S~]"
+            (csv-error-line-number object)
+            (csv-error-message object)
+            (csv-error-value object))))
+
+
+;; We use this function to signal our validation error
+(defun csv-error (message &amp;key value line-number)
+  (error 'csv-error
+         :message message
+         :value value
+         :line-number line-number))
+</pre>
+</p>
+
+<h2><a name="sec-4">Parsing the CSV</a></h2>
+
+<p>The parser converts raw CSV text into a list of lists -- each item in
+these lists corresponds to a field in the CSV.
+</p>
+<p>
+<pre>
+(defun parse-csv-file (file)
+  (with-open-file (f file :direction :input)
+    (loop
+       for line = (read-line f nil)
+       while line
+       collect (cl-ppcre:split "," line))))
+</pre>
+</p>
+
+
+
+<h2><a name="sec-5">The Validator (sans the restarts)</a></h2>
+
+<p>Finally, we get down to writing the validator, <code>validate-csv</code>. If the
+validation is succesful (i.e. all the fields in the CSV are valid),
+the function returns normally. If any invalid field is present, an
+error will be signalled (using the validator functions defined above).
+</p>
+<p>
+This version of the validator doesn't contain any restarts though.
+</p>
+<p>
+<pre>
+(defun validate-csv (file)
+  (destructuring-bind (headers . rows)
+      (parse-csv-file file)
+    (loop
+       for row in rows
+       for line-number upfrom 2
+       do
+       (when (/= (length row) (length headers))
+         (csv-error "Number of fields doesn't equal number of headers."
+                    :line-number line-number))
+       (handler-bind
+           ;; Set the LINE-NUMBER slot of the signalled
+           ;; csv-error. Note that since this clause returns normally,
+           ;; the error doesn't stop here, it goes "up" the stack
+           ((csv-error #'(lambda (c)
+                           (setf (csv-error-line-number c) line-number))))
+         (loop
+            for header in headers
+            for field in row
+            do (validate-field header field))))))
+
+
+;; Takes a header name and a string value as arguments; checks the
+;; validity of the value by calling the appropriate validator function
+(defun validate-field (header value)
+  (flet ((!header-matches (string)
+           (string-equal header string)))
+    (cond
+      ((!header-matches "url") (validate-url value))
+      ((!header-matches "rating") (validate-rating value))
+      ((!header-matches "visitors") (validate-visitors value))
+      ((!header-matches "date") (validate-date value))
+      (t (csv-error "Invalid header." :value header)))))
+</pre>
+</p>
+
+
+
+<h2><a name="sec-6">Putting restarts in place</a></h2>
+
+<p>There are a few actions we can take once an "invalid" field has been
+detected (i.e. a <code>csv-error</code> is signalled), e.g. we can abort the
+validation, we can continue validation on the next row, or we continue
+validation with the remaining fields in the same row (to name just a
+few).
+</p>
+<p>
+Aborting the validation is as simple as invoking the <code>ABORT</code> restart
+in the debugger, or doing something like this:
+</p>
+
+<p>
+<pre>
+(handler-case (progn
+                (validate-csv "~/tmp/test.csv")
+                :success)
+  (csv-error () :failure))
+</pre>
+</p>
+
+<p>
+To continue validation on the same row, or the next one, we add a
+couple of restarts using the <code>with-simple-restart</code> macro:
+</p>
+<p>
+<pre>
+(defun validate-csv (file)
+  (destructuring-bind (headers . rows)
+      (parse-csv-file file)
+    (loop
+       for row in rows
+       for line-number upfrom 2
+       do
+       ;; If this restart is invoked, validation will continue on
+       ;; the next row
+       (with-simple-restart (continue-next-row "Continue validation on next row.")
+         (when (/= (length row) (length headers))
+           (csv-error "Number of fields doesn't equal number of headers."
+                      :line-number line-number))
+         (loop
+            for header in headers
+            for field in row
+            do
+            (handler-bind
+                ((csv-error #'(lambda (c)
+                                (setf (csv-error-line-number c) line-number))))
+              ;; If this restart is invoked, validation will continue
+              ;; on the next field in the row
+              (with-simple-restart (continue-next-field "Continue validation on next field.")
+                (validate-field header field))))))))
+</pre>
+</p>
+
+<p>
+Time for some fun now. Pass an invalid file to the validator, and what
+do we see in the debugger? Two new restarts: <code>CONTINUE-NEXT-FIELD</code>,
+and <code>CONTINUE-NEXT-ROW</code>. Select any one of them to see the validation
+move forward. The <code>ABORT</code> restart should be present all the time, so
+we can end the validation any time we want.
+</p>
+
+
+
+<h2><a name="sec-7">Starting all over again</a></h2>
+
+<p>We'll add one more restart now: this will allow us to revalidate the
+whole file if an error is signalled.
+</p>
+<p>
+<pre>
+;; Note that what was known as VALIDATE-CSV earlier is now called
+;; VALIDATE-CSV-AUX.
+
+(defun validate-csv (file)
+  (restart-case (validate-csv-aux file)
+    (retry-file ()
+      :report (lambda (stream)
+                (format stream "Retry validating the file ~A." file))
+      (validate-csv file))))
+
+
+(defun validate-csv-aux (file)
+  (destructuring-bind (headers . rows)
+      (parse-csv-file file)
+    (loop
+       for row in rows
+       for line-number upfrom 2
+       do
+       (with-simple-restart (continue-next-row "Continue validation on next row.")
+         (when (/= (length row) (length headers))
+           (csv-error "Number of fields doesn't equal number of headers."
+                      :line-number line-number))
+         (loop
+            for header in headers
+            for field in row
+            do
+            (handler-bind
+                ((csv-error #'(lambda (c)
+                                (setf (csv-error-line-number c) line-number))))
+              (with-simple-restart (continue-next-field "Continue validation on next field.")
+                (validate-field header field))))))))
+</pre>
+</p>
+
+<p>
+Now what happens if we pass an invalid file to <code>validate-csv</code>? We get
+the <code>RETRY-FILE</code> restart in the debugger. This means that we can fix
+the problematic field, save the file, and start the validation all
+over again, without having exited the debugger!
+</p>
+
+
+<h2><a name="sec-8">Handling restarts</a></h2>
+
+<p>Apart from the debugger, we can also handle restarts using
+<code>handler-bind</code> and <code>find-restart</code>.
+</p>
+<p>
+For example, the following function will continue validating the file
+as long as CSV-ERRORs are signalled and one of <code>CONTINUE-NEXT-FIELD</code>
+or <code>CONTINUE-NEXT-ROW</code> restarts is available. It collects those errors
+in a list and returns the same.
+</p>
+<p>
+<pre>
+(defun list-csv-errors (file)
+  (let ((result nil))
+    (handler-bind
+        ((csv-error #'(lambda (c)
+                        (let ((restart (or (find-restart 'continue-next-field)
+                                           (find-restart 'continue-next-row))))
+                          (when restart
+                            (push c result)
+                            (invoke-restart restart))))))
+
+      (validate-csv file))
+    (nreverse result)))
+</pre>
+</p>
+
+<p>
+If we want a non-programmer to use the validator, we can provide a way
+to upload the CSV file (e.g. using Hunchentoot) and give a nicely
+formatted output of <code>list-csv-errors</code> in the browser.
+</p>
+
+
+<h2><a name="sec-9">Conclusion</a></h2>
+
+<p>What I really like about the condition system is how it allows one to
+defer decisions to higher-level functions. The low-level functions
+provide different ways to move forward in case of exceptions (this is
+what <code>validate-csv</code> does), while the higher-level functions actually get
+to decide what path to take (like <code>list-csv-errors</code>).
+</p>
+<p>
+If we wanted <code>list-csv-errors</code> to list only one error per each row,
+that change would have been trivial, thanks to the restarts we have
+provided. This separation of logic, IMHO, makes it a very elegant tool
+in dealing with problems like these.
+</p>
+<p>
+If you have any questions or comments, drop a mail to: mail at
+chaitanyagupta . com
+</p>
+
+
+
+<h2><a name="sec-10">Notes</a></h2>
+
+<ol>
+<li>
+<a href="http://gigamonkeys.com/book/beyond-exception-handling-conditions-and-restarts.html">http://gigamonkeys.com/book/beyond-exception-handling-conditions-and-restarts.html</a>
+</li>
+<li>
+Another good read is Kent Pitman's paper, "Condition Handling in
+the Lisp Language Family" -- <a href="http://www.nhplace.com/kent/Papers/Condition-Handling-2001.html">http://www.nhplace.com/kent/Papers/Condition-Handling-2001.html</a>
+</li>
+<li>
+A particular convention I follow is to prefix the names of local
+functions (defined using FLET and LABELS) with an exclaimation
+mark (!). This makes it very easy to identify a particular
+name as a local function or a macro name.
+
+
+</li>
+</ol>
+<p class="author"> Author: Chaitanya Gupta
+<a href="mailto:nil">&lt;nil&gt;</a>
+</p>
+<p class="date"> Date: 2008/05/06 21:12:25</p>
+</body>
+</html>

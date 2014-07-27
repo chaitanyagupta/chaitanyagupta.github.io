@@ -1,0 +1,80 @@
+<html lang="en">
+<head>
+<title>Status messages - cl-twit</title>
+<meta http-equiv="Content-Type" content="text/html">
+<meta name="description" content="cl-twit">
+<meta name="generator" content="makeinfo 4.11">
+<link title="Top" rel="start" href="index.html#Top">
+<link rel="prev" href="Authentication-and-state.html#Authentication-and-state" title="Authentication and state">
+<link rel="next" href="Direct-messages.html#Direct-messages" title="Direct messages">
+<link href="http://www.gnu.org/software/texinfo/" rel="generator-home" title="Texinfo Homepage">
+<!--
+Copyright (C) 2009 Chaitanya Gupta-->
+<meta http-equiv="Content-Style-Type" content="text/css">
+<style type="text/css"><!--
+  pre.display { font-family:inherit }
+  pre.format  { font-family:inherit }
+  pre.smalldisplay { font-family:inherit; font-size:smaller }
+  pre.smallformat  { font-family:inherit; font-size:smaller }
+  pre.smallexample { font-size:smaller }
+  pre.smalllisp    { font-size:smaller }
+  span.sc    { font-variant:small-caps }
+  span.roman { font-family:serif; font-weight:normal; } 
+  span.sansserif { font-family:sans-serif; font-weight:normal; } 
+--></style>
+</head>
+<body>
+<div class="node">
+<p>
+<a name="Status-messages"></a>
+Next:&nbsp;<a rel="next" accesskey="n" href="Direct-messages.html#Direct-messages">Direct messages</a>,
+Previous:&nbsp;<a rel="previous" accesskey="p" href="Authentication-and-state.html#Authentication-and-state">Authentication and state</a>,
+Up:&nbsp;<a rel="up" accesskey="u" href="index.html#Top">Top</a>
+<hr>
+</div>
+
+<h2 class="chapter">4 Status messages</h2>
+
+<p>To see your latest updates (equivalent to /home on twitter), enter
+
+<pre class="lisp">     (twit:timeline)
+     
+     ;; See just the five latest updates
+     (twit:timeline :count 5)
+</pre>
+   <p>To see a user's timeline (equivalent to a user's profile page),
+
+<pre class="lisp">     (twit:user-timeline "username")
+</pre>
+   <p>To create a new update,
+
+<pre class="lisp">     (twit:update "My latest tweet!")
+</pre>
+   <p>To see the latest @replies sent to you,
+
+<pre class="lisp">     (twit:@replies)
+</pre>
+   <p><code>(twit:last-displayed-statuses)</code> displays the list of statuses
+returned by the last call to either <code>twit:timeline</code>,
+<code>twit:user-timeline</code> or <code>twit:@replies</code>.
+
+   <p>To reply to a particular status, use reply-to or @reply-to. Note that
+the message string is used as a <code>format</code> control string. The
+corresponding <code>format</code> args can be passed as the rest args to
+these functions.
+
+<pre class="lisp">     ;; reply to the 3rd status from the last displayed list of statuses
+     (twit:reply-to 2 "@username Here, have your reply!")
+     
+     ;; reply to the status with status-id "123456789"
+     (twit:reply-to "123456789" "@username Here, have your reply!")
+     
+     ;; @reply-to automatically determines the screenname of the sender of
+     ;; the status being replied to, and prepends it to the text
+     
+     ;; When using @reply-to, the status text below is transformed to
+     ;; "@username Here, have your reply!"
+     (twit:@reply-to "123456789" "Here, have your reply!")
+</pre>
+   </body></html>
+

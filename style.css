@@ -1,0 +1,32 @@
+body {
+    padding: 10px;
+    font-family: sans-serif;
+    line-height: 1.2em;
+}
+
+div#container {
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 0;
+}
+
+span.new {
+    color: red;
+    font-weight: bold;
+    font-size: smaller;
+}
+
+div.summary {
+    font-style: italic;
+}
+
+h3 {
+    background: #ddd;
+    padding: 1px;
+}
+
+pre {
+    background: #eee;
+    margin-left: 10px;
+    padding-left: 30px;
+}
