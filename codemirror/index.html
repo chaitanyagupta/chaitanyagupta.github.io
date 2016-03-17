@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>CodeMirror Test</title>
+    <link rel="stylesheet" href="codemirror.css" />
+    <style>
+      #editor { width: 400px; height: 300px; border: 1px solid; }
+    </style>
+    <script src="codemirror.ugly.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function() {
+        var editor = document.getElementById("editor");
+        var cm = CodeMirror(editor);
+      });
+    </script>
+  </head>
+  <body>
+    <div id="editor" />
+  </body>
+</html>
+
+    
